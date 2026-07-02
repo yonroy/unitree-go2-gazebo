@@ -65,12 +65,14 @@ def generate_launch_description():
     )
 
     # /imu/data: can cho heading-hold trong gait_node (bu drift yaw khi di thang).
+    # /odom: ground-truth odometry, can cho quadruped_navigation/goto_point_server.
     gz_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         arguments=[
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
+            '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
         ],
         output='screen',
     )

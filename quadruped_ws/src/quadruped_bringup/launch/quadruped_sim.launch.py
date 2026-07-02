@@ -28,7 +28,14 @@ def generate_launch_description():
         output='screen',
     )
 
+    goto_point_server = Node(
+        package='quadruped_navigation',
+        executable='goto_point_server',
+        output='screen',
+    )
+
     return LaunchDescription([
         gazebo_launch,
         gait_node,
+        goto_point_server,
     ])
