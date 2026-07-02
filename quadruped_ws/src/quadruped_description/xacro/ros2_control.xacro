@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<!--
+Khai bao ros2_control cho 12 khop Go2, dung command_interface "position" (don gian
+nhat cho baseline reactive gait + IK, xem quadruped_gait). gz_ros2_control mo phong
+position command bang mot bo P noi bo tren moi khop, he so lay tham khao tu p-gain
+that cua Unitree (config/robot_control.yaml trong go2_description goc): hip=100,
+thigh/calf=300.
+
+initial_value cua thigh/calf = tu the dung mac dinh tinh boi
+quadruped_gait.trot_gait.TrotGait.standing_pose() (stance_height=0.30m, hip=0,
+thigh=+45.233deg, calf=-90.466deg). Dat initial_value de robot spawn SAN o tu the
+dung thay vi 0,0,0 - tranh cu giat dot ngot khi forward_position_controller kich
+hoat (da quan sat thay lam robot lat nguoc trong lan chay dau).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:property name="standing_hip" value="0.0"/>
+    <xacro:property name="standing_thigh" value="0.7894648616758762"/>
+    <xacro:property name="standing_calf" value="-1.5789297233517523"/>
+
+    <xacro:macro name="leg_ros2_control" params="name hip_gain:=100 thigh_gain:=300 calf_gain:=300">
+        <joint name="${name}_hip_joint">
+            <command_interface name="position"/>
+            <state_interface name="position">
+                <param name="initial_value">${standing_hip}</param>
+            </state_interface>
+            <state_interface name="velocity"/>
+            <param name="position_proportional_gain">${hip_gain}</param>
+        </joint>
+        <joint name="${name}_thigh_joint">
+            <command_interface name="position"/>
+            <state_interface name="position">
+                <param name="initial_value">${standing_thigh}</param>
+            </state_interface>
+            <state_interface name="velocity"/>
+            <param name="position_proportional_gain">${thigh_gain}</param>
+        </joint>
+        <joint name="${name}_calf_joint">
+            <command_interface name="position"/>
+            <state_interface name="position">
+                <param name="initial_value">${standing_calf}</param>
+            </state_interface>
+            <state_interface name="velocity"/>
+            <param name="position_proportional_gain">${calf_gain}</param>
+        </joint>
+    </xacro:macro>
+
+    <ros2_control name="Go2System" type="system">
+        <hardware>
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </hardware>
+        <xacro:leg_ros2_control name="FR"/>
+        <xacro:leg_ros2_control name="FL"/>
+        <xacro:leg_ros2_control name="RR"/>
+        <xacro:leg_ros2_control name="RL"/>
+    </ros2_control>
+
+</robot>

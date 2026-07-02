@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!--
+Plugin gz_ros2_control cho Gazebo Harmonic (thay the libgazebo_ros_control.so cua
+ban ROS1 goc). File config controller (joint_state_broadcaster + forward_position_controller)
+nam o config/go2_controllers.yaml.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+            <parameters>$(find quadruped_description)/config/go2_controllers.yaml</parameters>
+        </plugin>
+    </gazebo>
+
+    <gazebo reference="imu_link">
+        <sensor name="imu_sensor" type="imu">
+            <always_on>true</always_on>
+            <update_rate>200</update_rate>
+            <topic>imu/data</topic>
+        </sensor>
+    </gazebo>
+
+    <xacro:macro name="foot_friction" params="name">
+        <gazebo reference="${name}_foot">
+            <mu1>0.6</mu1>
+            <mu2>0.6</mu2>
+        </gazebo>
+    </xacro:macro>
+    <xacro:foot_friction name="FR"/>
+    <xacro:foot_friction name="FL"/>
+    <xacro:foot_friction name="RR"/>
+    <xacro:foot_friction name="RL"/>
+
+</robot>

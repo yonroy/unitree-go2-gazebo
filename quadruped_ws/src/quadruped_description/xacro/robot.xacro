@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<!--
+Adapt tu unitreerobotics/unitree_ros (BSD-3-Clause), robots/go2_description/xacro/robot.xacro.
+Thay doi so voi ban goc (ROS1 + Gazebo Classic):
+  - package name go2_description -> quadruped_description
+  - sua loi mesh: URDF tinh (go2_description.urdf) di kem repo dung "dae/base.dae" cho
+    link trunk, khong phai "meshes/trunk.dae" nhu robot.xacro goc tham chieu (file
+    trunk.dae khong ton tai trong repo) -> dung base.dae.
+  - bo cac plugin Gazebo Classic (libgazebo_ros_control, libunitreeFootContactPlugin,
+    libLinkPlot3DPlugin, ...) khong tuong thich Gazebo Harmonic/gz-sim, thay bang
+    gz_ros2_control (xem gazebo.xacro) + ros2_control.xacro.
+-->
+<robot name="go2" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:include filename="$(find quadruped_description)/xacro/const.xacro"/>
+    <xacro:include filename="$(find quadruped_description)/xacro/materials.xacro"/>
+    <xacro:include filename="$(find quadruped_description)/xacro/leg.xacro"/>
+    <xacro:include filename="$(find quadruped_description)/xacro/ros2_control.xacro"/>
+    <xacro:include filename="$(find quadruped_description)/xacro/gazebo.xacro"/>
+
+    <link name="trunk">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <mesh filename="package://quadruped_description/meshes/base.dae" scale="1 1 1"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="${trunk_length} ${trunk_width} ${trunk_height}"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <origin rpy="0 0 0" xyz="${trunk_com_x} ${trunk_com_y} ${trunk_com_z}"/>
+            <mass value="${trunk_mass}"/>
+            <inertia
+                ixx="${trunk_ixx}" ixy="${trunk_ixy}" ixz="${trunk_ixz}"
+                iyy="${trunk_iyy}" iyz="${trunk_iyz}"
+                izz="${trunk_izz}"/>
+        </inertial>
+    </link>
+
+    <joint name="imu_joint" type="fixed">
+        <parent link="trunk"/>
+        <child link="imu_link"/>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+    </joint>
+
+    <link name="imu_link">
+        <inertial>
+            <mass value="0.001"/>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+        </inertial>
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="0.001 0.001 0.001"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size=".001 .001 .001"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <xacro:leg name="FR" mirror="-1" mirror_dae="False" front_hind="1"  front_hind_dae="True"  />
+    <xacro:leg name="FL" mirror="1"  mirror_dae="True"  front_hind="1"  front_hind_dae="True"  />
+    <xacro:leg name="RR" mirror="-1" mirror_dae="False" front_hind="-1" front_hind_dae="False" />
+    <xacro:leg name="RL" mirror="1"  mirror_dae="True"  front_hind="-1" front_hind_dae="False" />
+
+</robot>
