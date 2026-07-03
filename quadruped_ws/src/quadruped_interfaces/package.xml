@@ -3,7 +3,7 @@
 <package format="3">
   <name>quadruped_interfaces</name>
   <version>0.1.0</version>
-  <description>Custom action GotoPoint dung boi quadruped_navigation</description>
+  <description>Custom action GotoPoint (quadruped_navigation) va TrackObject + msg TrackedTarget (quadruped_perception/quadruped_follow)</description>
   <maintainer email="tranminhtoan14062001@gmail.com">minhtoan</maintainer>
   <license>Apache-2.0</license>
 

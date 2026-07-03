@@ -7,6 +7,8 @@ find_package(action_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/GotoPoint.action"
+  "action/TrackObject.action"
+  "msg/TrackedTarget.msg"
   DEPENDENCIES action_msgs
 )
 

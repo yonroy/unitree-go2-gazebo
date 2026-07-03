@@ -18,29 +18,41 @@ hoat (da quan sat thay lam robot lat nguoc trong lan chay dau).
     <xacro:property name="standing_thigh" value="0.7894648616758762"/>
     <xacro:property name="standing_calf" value="-1.5789297233517523"/>
 
+    <!-- Moi khop khai bao CA HAI command_interface:
+         - position: cho baseline gait rule-based (forward_position_controller,
+           gz mo phong bang P noi bo, gain hip=100 thigh/calf=300).
+         - effort: cho RL locomotion (quadruped_rl) - node tu tinh PD torque
+           (Kp/Kd cua policy) roi gui effort truc tiep, khong dung P noi bo cua gz.
+         Chi 1 controller active moi luc (position HOAC effort), khong xung dot. -->
     <xacro:macro name="leg_ros2_control" params="name hip_gain:=100 thigh_gain:=300 calf_gain:=300">
         <joint name="${name}_hip_joint">
             <command_interface name="position"/>
+            <command_interface name="effort"/>
             <state_interface name="position">
                 <param name="initial_value">${standing_hip}</param>
             </state_interface>
             <state_interface name="velocity"/>
+            <state_interface name="effort"/>
             <param name="position_proportional_gain">${hip_gain}</param>
         </joint>
         <joint name="${name}_thigh_joint">
             <command_interface name="position"/>
+            <command_interface name="effort"/>
             <state_interface name="position">
                 <param name="initial_value">${standing_thigh}</param>
             </state_interface>
             <state_interface name="velocity"/>
+            <state_interface name="effort"/>
             <param name="position_proportional_gain">${thigh_gain}</param>
         </joint>
         <joint name="${name}_calf_joint">
             <command_interface name="position"/>
+            <command_interface name="effort"/>
             <state_interface name="position">
                 <param name="initial_value">${standing_calf}</param>
             </state_interface>
             <state_interface name="velocity"/>
+            <state_interface name="effort"/>
             <param name="position_proportional_gain">${calf_gain}</param>
         </joint>
     </xacro:macro>

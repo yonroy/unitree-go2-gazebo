@@ -7,7 +7,13 @@ quadruped_ws/log/
 __pycache__/
 *.pyc
 
+# YOLO weights (ultralytics tu tai ~6MB vao CWD khi chay object_detector lan dau)
+*.pt
+
 # Editor / OS
 .vscode/
 *.swp
 .DS_Store
+
+# MuJoCo Menagerie Go2 model (30MB, third-party BSD - tai lai neu can)
+quadruped_ws/src/quadruped_rl/mujoco_demo/go2_model/

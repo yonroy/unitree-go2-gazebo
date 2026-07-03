@@ -62,6 +62,41 @@
       </link>
     </model>
 
+    <!-- Vat the test cho track_object (quadruped_follow) - qua cau mau cam,
+         dat truoc diem spawn robot. VelocityControl cho phep dieu khien
+         van toc tu ROS qua topic /model/target_ball/cmd_vel (bridge trong
+         quadruped_description/launch/gazebo.launch.py) de mo phong muc
+         tieu di chuyen khi test bam duoi. -->
+    <model name="target_ball">
+      <pose>1.5 0 0.12 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.5</mass>
+          <inertia>
+            <ixx>0.001</ixx><iyy>0.001</iyy><izz>0.001</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <sphere><radius>0.12</radius></sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere><radius>0.12</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0.9 0.4 0.05 1</ambient>
+            <diffuse>0.95 0.45 0.05 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
+        <link_name>link</link_name>
+      </plugin>
+    </model>
+
     <gravity>0 0 -9.81</gravity>
   </world>
 </sdf>

@@ -12,6 +12,8 @@
   <exec_depend>quadruped_description</exec_depend>
   <exec_depend>quadruped_gait</exec_depend>
   <exec_depend>quadruped_navigation</exec_depend>
+  <exec_depend>quadruped_perception</exec_depend>
+  <exec_depend>quadruped_follow</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>
 
   <export>

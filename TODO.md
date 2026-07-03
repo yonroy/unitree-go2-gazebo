@@ -34,15 +34,18 @@
 - [ ] Domain randomization (ma sát, khối lượng, độ trễ)
 - [ ] Train policy chỉ dùng IMU + encoder (không cần camera)
 
-## Bước 5 — Sim-to-real blind policy
-- [ ] Xuất policy ONNX, viết node inference ROS 2
-- [ ] Thay `gait_node` (rule-based) bằng RL policy node
-- [ ] Test lại trong Gazebo trước khi lên robot thật
+## Bước 5 — Sim-to-real blind policy (đi tắt: dùng policy pretrained)
+- [x] Policy ONNX có sẵn (`diasAiMaster/unitree-go2-velocity-flat`, HF, BSD-3) — không tự train, tải về `quadruped_rl/models/`
+- [x] Node inference ROS 2 (`quadruped_rl/rl_policy_node.py`): obs 45 chiều → ONNX → PD torque (effort)
+- [x] Thay `gait_node` (rule-based) bằng RL policy node — launch `rl_locomotion.launch.py`
+- [x] Test trong Gazebo: robot **đứng vững + đi được** bằng neural policy (đã fix 3 bug: PD 2 vòng, startup hand-off, joint_ids_map remap — xem CLAUDE.md)
+- [ ] Tinh chỉnh residual sim-to-sim (đi chậm hơn lệnh, trôi/cong, chưa đứng yên tuyệt đối khi lệnh=0)
+- [ ] (Tùy chọn) tự train policy với chính URDF (Genesis) để hết gap convention/physics
 
 ## Bước 6 — Ghép follow-object (vision)
-- [ ] `quadruped_perception`: camera + YOLO detect + tracker (ByteTrack)
-- [ ] `quadruped_follow`: PID bám mục tiêu → `/cmd_vel`
-- [ ] Test trong Gazebo với object giả lập
+- [x] `quadruped_perception`: camera RGBD + YOLO detect + tracker đơn giản (không ByteTrack, 1 target)
+- [x] `quadruped_follow`: action `track_object` (PID khoảng cách + góc) → `/cmd_vel`
+- [x] Test trong Gazebo với object giả lập (`target_ball`) — đã kiểm chứng số liệu thật: robot bám tới `stop_distance=0.8m` rồi giữ, và bám được mục tiêu di động (`move_target_demo`). Xem ghi chú bug/caveat trong CLAUDE.md.
 
 ---
 
