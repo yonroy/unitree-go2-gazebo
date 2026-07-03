@@ -19,10 +19,17 @@ Thay doi so voi ban goc (ROS1 + Gazebo Classic):
     <xacro:include filename="$(find quadruped_description)/xacro/gazebo.xacro"/>
 
     <link name="trunk">
+        <!-- Visual dung box don gian thay vi mesh .dae goc: mesh COLLADA nhieu
+             polygon (~78k faces) lam hong render context cua camera sensor tren
+             may GPU hybrid Intel+NVIDIA (da kiem chung: mesh it face render camera
+             dung, mesh nhieu face lam camera ra mau xam dong nhat - loi tang
+             gz-sim/driver). Mesh giam poly thi camera render duoc nhung nhin xau
+             hon box, nen dung box. collision/inertial giu nguyen, khong doi vat ly.
+             Xem CLAUDE.md. -->
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://quadruped_description/meshes/base.dae" scale="1 1 1"/>
+                <box size="${trunk_length} ${trunk_width} ${trunk_height}"/>
             </geometry>
         </visual>
         <collision>
@@ -66,6 +73,49 @@ Thay doi so voi ban goc (ROS1 + Gazebo Classic):
             </geometry>
         </collision>
     </link>
+
+    <!-- Camera RGBD gan truoc trunk, dung cho track_object (xem gazebo.xacro cho sensor tag).
+         Nghieng xuong ~0.26 rad (15 deg, pitch quanh Y) de khi robot tien lai gan,
+         muc tieu duoi dat khong roi khoi khung hinh (da kiem chung: camera ngang thi
+         mat detection luc den gan vi bong tut xuong day anh). tf2 tu dong bu goc nghieng
+         nen cong thuc pinhole -> target_pose khong doi. -->
+    <joint name="camera_joint" type="fixed">
+        <parent link="trunk"/>
+        <child link="camera_link"/>
+        <origin rpy="0 0.26 0" xyz="${trunk_length/2} 0 0.02"/>
+    </joint>
+
+    <link name="camera_link">
+        <inertial>
+            <mass value="0.001"/>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+        </inertial>
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="0.001 0.001 0.001"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size=".001 .001 .001"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <!-- Frame "optical" chuan REP-103 (z-forward, x-right, y-down) - cong thuc
+         pinhole trong quadruped_perception/target_pose_node.py tinh diem 3D
+         theo quy uoc nay, khac voi camera_link vat ly (x-forward giong than
+         robot) nen can xoay rieng, khong dung truc tiep camera_link. -->
+    <joint name="camera_optical_joint" type="fixed">
+        <parent link="camera_link"/>
+        <child link="camera_link_optical"/>
+        <origin rpy="${-PI/2} 0 ${-PI/2}" xyz="0 0 0"/>
+    </joint>
+
+    <link name="camera_link_optical"/>
 
     <xacro:leg name="FR" mirror="-1" mirror_dae="False" front_hind="1"  front_hind_dae="True"  />
     <xacro:leg name="FL" mirror="1"  mirror_dae="True"  front_hind="1"  front_hind_dae="True"  />

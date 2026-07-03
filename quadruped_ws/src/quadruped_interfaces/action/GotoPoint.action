@@ -1,0 +1,11 @@
+# Goal: toa do muc tieu (m), tinh trong khung "odom" (goc = diem robot spawn)
+float64 x
+float64 y
+---
+# Result
+bool success
+string message
+---
+# Feedback
+float64 distance_remaining
+float64 heading_error

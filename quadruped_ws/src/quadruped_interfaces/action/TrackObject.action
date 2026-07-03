@@ -1,0 +1,13 @@
+# Goal: id muc tieu can bam (mac dinh 0, chi co 1 target trong scene test)
+# va khoang cach dung lai truoc muc tieu (m)
+int32 target_id
+float32 stop_distance
+---
+# Result
+bool success
+string message
+---
+# Feedback
+float32 current_distance
+float32 current_angle
+bool target_visible

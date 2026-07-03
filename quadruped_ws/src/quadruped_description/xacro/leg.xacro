@@ -34,21 +34,13 @@ Da bo <transmission> (ROS1 gazebo_ros_control) vi ROS 2 dung <ros2_control> tag 
         </joint>
 
         <link name="${name}_hip">
+            <!-- Visual dung cylinder don gian thay vi mesh .dae - xem ghi chu o
+                 trunk visual trong robot.xacro. Cylinder doi xung truc nen dung
+                 chung 1 origin voi collision cho ca 4 chan. -->
             <visual>
-                <xacro:if value="${(mirror_dae == True) and (front_hind_dae == True)}">
-                    <origin rpy="0 0 0" xyz="0 0 0"/>
-                </xacro:if>
-                <xacro:if value="${(mirror_dae == False) and (front_hind_dae == True)}">
-                    <origin rpy="${PI} 0 0" xyz="0 0 0"/>
-                </xacro:if>
-                <xacro:if value="${(mirror_dae == True) and (front_hind_dae == False)}">
-                    <origin rpy="0 ${PI} 0" xyz="0 0 0"/>
-                </xacro:if>
-                <xacro:if value="${(mirror_dae == False) and (front_hind_dae == False)}">
-                    <origin rpy="${PI} ${PI} 0" xyz="0 0 0"/>
-                </xacro:if>
+                <origin rpy="${PI/2.0} 0 0" xyz="0 ${hip_offset*mirror} 0"/>
                 <geometry>
-                    <mesh filename="package://quadruped_description/meshes/hip.dae" scale="1 1 1"/>
+                    <cylinder length="${hip_length}" radius="${hip_radius}"/>
                 </geometry>
             </visual>
             <collision>
@@ -77,15 +69,12 @@ Da bo <transmission> (ROS1 gazebo_ros_control) vi ROS 2 dung <ros2_control> tag 
         </joint>
 
         <link name="${name}_thigh">
+            <!-- Visual dung box don gian thay vi mesh .dae - xem ghi chu o trunk
+                 visual trong robot.xacro. -->
             <visual>
-                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <origin rpy="0 ${PI/2.0} 0" xyz="0 0 ${-thigh_length/2.0}"/>
                 <geometry>
-                    <xacro:if value="${mirror_dae == True}">
-                        <mesh filename="package://quadruped_description/meshes/thigh.dae" scale="1 1 1"/>
-                    </xacro:if>
-                    <xacro:if value="${mirror_dae == False}">
-                        <mesh filename="package://quadruped_description/meshes/thigh_mirror.dae" scale="1 1 1"/>
-                    </xacro:if>
+                    <box size="${thigh_length} ${thigh_width} ${thigh_height}"/>
                 </geometry>
             </visual>
             <collision>
@@ -114,10 +103,12 @@ Da bo <transmission> (ROS1 gazebo_ros_control) vi ROS 2 dung <ros2_control> tag 
         </joint>
 
         <link name="${name}_calf">
+            <!-- Visual dung box don gian thay vi mesh .dae - xem ghi chu o trunk
+                 visual trong robot.xacro. -->
             <visual>
-                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <origin rpy="0 ${PI/2.0} 0" xyz="0 0 ${-calf_length/2.0}"/>
                 <geometry>
-                    <mesh filename="package://quadruped_description/meshes/calf.dae" scale="1 1 1"/>
+                    <box size="${calf_length} ${calf_width} ${calf_height}"/>
                 </geometry>
             </visual>
             <collision>

@@ -8,6 +8,11 @@ controller_manager:
     forward_position_controller:
       type: forward_command_controller/ForwardCommandController
 
+    # Cho RL locomotion (quadruped_rl): nhan torque (effort) tu rl_policy_node,
+    # thay cho forward_position_controller. Chi 1 trong 2 active moi luc.
+    joint_effort_controller:
+      type: forward_command_controller/ForwardCommandController
+
 forward_position_controller:
   ros__parameters:
     joints:
@@ -24,3 +29,20 @@ forward_position_controller:
       - RL_thigh_joint
       - RL_calf_joint
     interface_name: position
+
+joint_effort_controller:
+  ros__parameters:
+    joints:
+      - FR_hip_joint
+      - FR_thigh_joint
+      - FR_calf_joint
+      - FL_hip_joint
+      - FL_thigh_joint
+      - FL_calf_joint
+      - RR_hip_joint
+      - RR_thigh_joint
+      - RR_calf_joint
+      - RL_hip_joint
+      - RL_thigh_joint
+      - RL_calf_joint
+    interface_name: effort

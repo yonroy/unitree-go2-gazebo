@@ -1,11 +1,14 @@
 """Bang dieu khien joystick ao (Tkinter) - publish /cmd_vel de di chuyen Go2
-theo moi huong (tien/lui, sang trai/phai, xoay trai/phai, cheo).
+theo moi huong (tien/lui, sang trai/phai, xoay trai/phai, cheo), kem khung
+hien thi camera truc tiep (subscribe /camera/image).
 
 Khong can joystick/gamepad vat ly: keo chuot tren 2 "can" ao tren man hinh.
 - Can trai (hinh tron): vi tri tuong doi -> vx (tien/lui), vy (trai/phai - strafe,
   loi the cua robot chan so voi robot banh xe, xem §3 tai lieu).
 - Can phai (thanh ngang): vi tri tuong doi -> wz (xoay trai/phai).
 - Tha chuot -> can tu dong ve giua -> /cmd_vel = 0 (an toan, giong lo xo hoi).
+- Khung camera phia tren: anh tu camera RGBD tren robot (dung chung view voi
+  track_object). Neu chua co topic /camera/image thi hien "cho camera...".
 """
 import math
 import tkinter as tk
@@ -15,6 +18,23 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 
+# Camera hien thi la tuy chon: neu thieu cv_bridge/PIL thi panel van chay,
+# chi bo khung camera (khong lam hong chuc nang joystick chinh).
+try:
+    from cv_bridge import CvBridge
+    from PIL import Image as PILImage, ImageDraw, ImageFont, ImageTk
+    from sensor_msgs.msg import Image as RosImage
+    from vision_msgs.msg import Detection2DArray
+    _CAMERA_AVAILABLE = True
+    try:
+        _BBOX_FONT = ImageFont.truetype(
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 15)
+    except OSError:
+        _BBOX_FONT = ImageFont.load_default()  # font mac dinh (nho hon) neu thieu ttf
+except ImportError as _exc:
+    _CAMERA_IMPORT_ERROR = _exc
+    _CAMERA_AVAILABLE = False
+
 PUBLISH_RATE_HZ = 20
 BASE_MAX_LINEAR = 0.3   # m/s - khop voi toc do da kiem chung on dinh trong Gazebo
 BASE_MAX_ANGULAR = 0.5  # rad/s - khop voi toc do da kiem chung on dinh trong Gazebo
@@ -22,6 +42,11 @@ BASE_MAX_ANGULAR = 0.5  # rad/s - khop voi toc do da kiem chung on dinh trong Ga
 JOY_RADIUS = 90
 SLIDER_HALF_WIDTH = 90
 PUCK_RADIUS = 16
+
+CAMERA_TOPIC = '/camera/image'
+CAM_W = 400          # kich thuoc hien thi (camera goc 640x480, giu ty le 4:3)
+CAM_H = 300
+CAM_UPDATE_HZ = 15   # khop update_rate cua rgbd_camera sensor
 
 
 class _DragPad2D:
@@ -140,6 +165,8 @@ class JoystickPanel:
         self.root.configure(bg='#1e1e1e')
         self.root.protocol('WM_DELETE_WINDOW', self._on_close)
 
+        self._setup_camera()
+
         pads = tk.Frame(self.root, bg='#1e1e1e')
         pads.pack(padx=16, pady=12)
 
@@ -171,6 +198,83 @@ class JoystickPanel:
                   ).pack(fill='x', padx=16, pady=(0, 12))
 
         self._publish_loop()
+        if self._camera_enabled:
+            self._update_camera()
+
+    def _setup_camera(self):
+        """Tao khung camera + subscribe /camera/image (neu co du thu vien)."""
+        cam_frame = tk.Frame(self.root, bg='#1e1e1e')
+        cam_frame.pack(padx=16, pady=(12, 0))
+        tk.Label(cam_frame, text='Camera (/camera/image)', fg='white', bg='#1e1e1e').pack()
+
+        self._camera_enabled = _CAMERA_AVAILABLE
+        self._latest_frame = None
+        self._latest_dets = []  # list (x1,y1,x2,y2,label,score) - toa do pixel goc 640x480
+        self._photo = None  # giu tham chieu tranh bi garbage-collect
+
+        if not self._camera_enabled:
+            # Khong co PIL/cv_bridge -> chi 1 dong text (width/height la don vi
+            # ky tu khi Label khong co image, dat vua du).
+            tk.Label(cam_frame, text='(thieu cv_bridge/PIL - khong hien camera)',
+                     fg='#9e9e9e', bg='#000000', width=44, height=2).pack()
+            self.node.get_logger().warn(f'Camera panel tat: {_CAMERA_IMPORT_ERROR}')
+            return
+
+        # Anh placeholder den CAM_W x CAM_H de giu dung kich thuoc (pixel) tu dau,
+        # kem text "cho camera..." de len tren (compound='center').
+        placeholder = PILImage.new('RGB', (CAM_W, CAM_H), (0, 0, 0))
+        self._photo = ImageTk.PhotoImage(placeholder)
+        self.cam_label = tk.Label(
+            cam_frame, image=self._photo, text='cho camera...', compound='center',
+            fg='#9e9e9e', bg='#000000', font=('sans-serif', 12),
+        )
+        self.cam_label.pack()
+
+        self._bridge = CvBridge()
+        self.node.create_subscription(RosImage, CAMERA_TOPIC, self._on_image, 1)
+        # /detections (tu quadruped_perception/object_detector) de ve bounding box
+        # len anh. Neu khong chay perception thi khong co box (panel van hien anh).
+        self.node.create_subscription(Detection2DArray, '/detections', self._on_detections, 5)
+
+    def _on_image(self, msg):
+        # spin_once chay trong luong Tk (o _publish_loop) nen callback nay cung
+        # o luong Tk - chi luu frame, viec ve len widget lam o _update_camera.
+        self._latest_frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+    def _on_detections(self, msg):
+        dets = []
+        for d in msg.detections:
+            cx = d.bbox.center.position.x
+            cy = d.bbox.center.position.y
+            sx = d.bbox.size_x
+            sy = d.bbox.size_y
+            label = d.results[0].hypothesis.class_id if d.results else '?'
+            score = d.results[0].hypothesis.score if d.results else 0.0
+            dets.append((cx - sx / 2, cy - sy / 2, cx + sx / 2, cy + sy / 2, label, score))
+        self._latest_dets = dets
+
+    def _update_camera(self):
+        if self._latest_frame is not None:
+            h, w = self._latest_frame.shape[:2]
+            # BGR -> RGB (khong can cv2); .copy() de mang C-contiguous cho PIL.
+            rgb = self._latest_frame[:, :, ::-1].copy()
+            img = PILImage.fromarray(rgb)
+            # Ve bounding box + nhan len anh GOC (truoc resize) de box scale dung.
+            if self._latest_dets:
+                draw = ImageDraw.Draw(img)
+                for (x1, y1, x2, y2, label, score) in self._latest_dets:
+                    draw.rectangle([x1, y1, x2, y2], outline=(0, 255, 0), width=3)
+                    text = f'{label} {score:.2f}'
+                    tb = draw.textbbox((0, 0), text, font=_BBOX_FONT)
+                    tw, th = tb[2] - tb[0], tb[3] - tb[1]
+                    ty = max(0, y1 - th - 4)
+                    # Nen xanh dam de chu trang deu doc duoc tren moi mau anh
+                    draw.rectangle([x1, ty, x1 + tw + 6, ty + th + 4], fill=(0, 150, 0))
+                    draw.text((x1 + 3, ty + 2), text, fill=(255, 255, 255), font=_BBOX_FONT)
+            img = img.resize((CAM_W, CAM_H))
+            self._photo = ImageTk.PhotoImage(img)
+            self.cam_label.configure(image=self._photo, text='')
+        self.root.after(int(1000 / CAM_UPDATE_HZ), self._update_camera)
 
     def _emergency_stop(self):
         self.pad2d._release(None)

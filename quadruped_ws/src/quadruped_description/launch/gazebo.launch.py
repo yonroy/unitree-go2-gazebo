@@ -8,10 +8,16 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, RegisterEventHandler, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    RegisterEventHandler,
+    SetEnvironmentVariable,
+)
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, PathJoinSubstitution
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -35,13 +41,38 @@ def generate_launch_description():
         'GZ_SIM_RESOURCE_PATH', os.path.dirname(pkg_description)
     )
 
-    gz_sim = IncludeLaunchDescription(
+    # Tren may GPU hybrid (Intel iGPU + NVIDIA dGPU), cua so GUI tuong tac va render
+    # offscreen cua sensor (camera/rgbd) TRANH nhau context render -> anh camera ra
+    # mau xam dong nhat (da kiem chung thuc te). Dung headless:=true (khong GUI,
+    # -s --headless-rendering) de camera/track_object render dung. Xem CLAUDE.md.
+    headless_arg = DeclareLaunchArgument(
+        'headless', default_value='false',
+        description='true = chay khong GUI (-s --headless-rendering), can cho camera render dung tren may GPU hybrid',
+    )
+    headless = LaunchConfiguration('headless')
+
+    locomotion_controller_arg = DeclareLaunchArgument(
+        'locomotion_controller', default_value='forward_position_controller',
+        description='Controller khop: forward_position_controller (gait) hoac joint_effort_controller (RL)',
+    )
+
+    gz_sim_gui = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
                 get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py'
             )
         ),
         launch_arguments={'gz_args': f'-r {world_file}'}.items(),
+        condition=UnlessCondition(headless),
+    )
+    gz_sim_headless = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py'
+            )
+        ),
+        launch_arguments={'gz_args': f'-s -r --headless-rendering {world_file}'}.items(),
+        condition=IfCondition(headless),
     )
 
     robot_state_publisher = Node(
@@ -65,12 +96,22 @@ def generate_launch_description():
     )
 
     # /imu/data: can cho heading-hold trong gait_node (bu drift yaw khi di thang).
+    # /odom: ground-truth odometry, can cho quadruped_navigation/goto_point_server.
+    # /camera/*: rgbd_camera sensor (xem gazebo.xacro), can cho quadruped_perception.
+    # /model/target_ball/cmd_vel: dieu khien van toc qua cau test (VelocityControl
+    # plugin trong worlds/flat_ground.sdf), 1 chieu ROS->GZ, dung khi test bam duoi
+    # muc tieu di chuyen.
     gz_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         arguments=[
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
+            '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+            '/camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
+            '/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
+            '/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+            '/model/target_ball/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
         ],
         output='screen',
     )
@@ -82,10 +123,12 @@ def generate_launch_description():
         output='screen',
     )
 
-    forward_position_controller_spawner = Node(
+    # Controller dieu khien khop: mac dinh forward_position_controller (gait
+    # rule-based). RL locomotion truyen locomotion_controller:=joint_effort_controller.
+    locomotion_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['forward_position_controller'],
+        arguments=[LaunchConfiguration('locomotion_controller')],
         output='screen',
     )
 
@@ -97,19 +140,22 @@ def generate_launch_description():
             on_exit=[joint_state_broadcaster_spawner],
         )
     )
-    delayed_forward_position_controller = RegisterEventHandler(
+    delayed_locomotion_controller = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=joint_state_broadcaster_spawner,
-            on_exit=[forward_position_controller_spawner],
+            on_exit=[locomotion_controller_spawner],
         )
     )
 
     return LaunchDescription([
+        headless_arg,
+        locomotion_controller_arg,
         resource_path,
-        gz_sim,
+        gz_sim_gui,
+        gz_sim_headless,
         gz_bridge,
         robot_state_publisher,
         spawn_robot,
         delayed_joint_state_broadcaster,
-        delayed_forward_position_controller,
+        delayed_locomotion_controller,
     ])
