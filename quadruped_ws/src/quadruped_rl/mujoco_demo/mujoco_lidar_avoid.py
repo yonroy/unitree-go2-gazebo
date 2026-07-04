@@ -35,6 +35,9 @@ STEPS_PER_TICK = 18
 N_RAYS = 90
 LIDAR_H = 0.5           # tren noc than (0.35 nam trong than -> tia bi chan)
 RANGE_MAX = 8.0
+# Gioi han lenh yaw an toan (DA DO trong MuJoCo): wz <= -0.80 (xoay CW gap) lam robot
+# NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW gioi han +1.0 (range train).
+WZ_MIN, WZ_MAX = -0.75, 1.0
 VIEW_W, VIEW_H = 560, 420
 MAP_PX = 300
 MAP_M = 8.0          # ban do +/- 8m -> 16m
@@ -167,6 +170,7 @@ class App:
         # LiDAR + ne (moi tick)
         ranges, hits = self.lidar.scan(self.d, pos, yaw)
         vx, wz = compute_avoidance(ranges, -np.pi, 2*np.pi/N_RAYS, RANGE_MAX, self.params)
+        wz = float(np.clip(wz, WZ_MIN, WZ_MAX))  # tranh vung nga CW (xem WZ_MIN)
         self.cmd[:] = [vx, 0.0, wz]
         self.occ.update(pos, hits)
 

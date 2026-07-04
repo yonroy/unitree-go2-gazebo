@@ -44,6 +44,9 @@ N_V = 16                  # kenh doc (giong Velodyne)
 V_MIN, V_MAX = math.radians(-12), math.radians(10)
 LIDAR_H = 0.5
 RANGE_MAX = 8.0
+# Gioi han lenh yaw an toan (DA DO trong MuJoCo): wz <= -0.80 (xoay CW gap) lam robot
+# NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW gioi han +1.0 (range train).
+WZ_MIN, WZ_MAX = -0.75, 1.0
 VOXEL = 0.08              # gop diem theo o 8cm (dam may khong phinh vo han)
 MAX_POINTS = 120000
 _GG = np.array([0, 0, 0, 1, 0, 0], np.uint8)
@@ -128,6 +131,7 @@ class MujocoLidarRviz(Node):
         # ne vat can (dung scan ngang)
         r = self._scan2d_ranges(pos, yaw)
         vx, wz = compute_avoidance(r, -np.pi, 2*np.pi/N_H, RANGE_MAX, self.params)
+        wz = float(np.clip(wz, WZ_MIN, WZ_MAX))  # tranh vung nga CW (xem WZ_MIN)
         self.cmd[:] = [vx, 0.0, wz]
 
         for _ in range(STEPS_PER_TICK):

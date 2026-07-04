@@ -35,6 +35,9 @@ STEPS_PER_TICK = 18
 N_RAYS = 90
 LIDAR_H = 0.5
 RANGE_MAX = 8.0
+# Gioi han lenh yaw an toan (DA DO trong MuJoCo): wz <= -0.80 (xoay CW gap) lam robot
+# NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW gioi han +1.0 (range train).
+WZ_MIN, WZ_MAX = -0.75, 1.0
 VIEW_W, VIEW_H = 520, 400
 MAP_PX = 300
 MAP_M = 4.0
@@ -190,6 +193,7 @@ class App:
                 self.goal = None; self.path_world = []; vx = vy = wz = 0.0; self.mode = 'ĐÃ TỚI ĐÍCH'
             else:
                 self.mode = 'ĐI theo A*' if self.path_world else 'đi thẳng tới đích'
+        wz = float(np.clip(wz, WZ_MIN, WZ_MAX))  # tranh vung nga CW (xem WZ_MIN)
         self.cmd[:] = [vx, vy, wz]
 
         for _ in range(STEPS_PER_TICK):

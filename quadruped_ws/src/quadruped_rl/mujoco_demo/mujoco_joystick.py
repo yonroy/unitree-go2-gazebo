@@ -31,8 +31,10 @@ SIM_DT = 0.002
 DECIMATION = 10                 # policy 50Hz
 STEPS_PER_TICK = 10             # sim 0.02s moi tick Tk (~real-time)
 MAX_VX, MAX_VY, MAX_WZ = 1.0, 0.5, 1.0
-# gioi han lenh cua policy (deploy.yaml): vx[-1,2], vy[-1,1], wz[-1,1]
-CMD_LIM = np.array([[-1.0, 2.0], [-1.0, 1.0], [-1.0, 1.0]])
+# gioi han lenh cua policy (deploy.yaml): vx[-1,2], vy[-1,1], wz[-1,1].
+# Bien duoi wz = -0.75 (khong phai -1.0): DA DO trong MuJoCo, wz <= -0.80 (xoay CW
+# gap) lam robot NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW giu +1.0.
+CMD_LIM = np.array([[-1.0, 2.0], [-1.0, 1.0], [-0.75, 1.0]])
 W, H = 640, 400
 
 JOY_R, SLIDE_W, PUCK = 80, 80, 14
