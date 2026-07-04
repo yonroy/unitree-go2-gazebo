@@ -62,6 +62,24 @@
       </link>
     </model>
 
+    <!-- Vat can tinh cho ne vat can + SLAM (quadruped_navigation/lidar).
+         Cot + tuong bo tri quanh diem spawn de robot LiDAR quet + ne + dung ban do. -->
+    <model name="obstacles">
+      <static>true</static>
+      <link name="link">
+        <!-- 3 cot vuong -->
+        <collision name="c1"><pose>2.0 1.2 0.4 0 0 0</pose><geometry><box><size>0.4 0.4 0.8</size></box></geometry></collision>
+        <visual name="c1v"><pose>2.0 1.2 0.4 0 0 0</pose><geometry><box><size>0.4 0.4 0.8</size></box></geometry><material><ambient>0.7 0.3 0.3 1</ambient><diffuse>0.8 0.35 0.35 1</diffuse></material></visual>
+        <collision name="c2"><pose>2.5 -1.5 0.4 0 0 0</pose><geometry><box><size>0.4 0.4 0.8</size></box></geometry></collision>
+        <visual name="c2v"><pose>2.5 -1.5 0.4 0 0 0</pose><geometry><box><size>0.4 0.4 0.8</size></box></geometry><material><ambient>0.7 0.3 0.3 1</ambient><diffuse>0.8 0.35 0.35 1</diffuse></material></visual>
+        <collision name="c3"><pose>4.0 0.5 0.4 0 0 0</pose><geometry><box><size>0.4 0.4 0.8</size></box></geometry></collision>
+        <visual name="c3v"><pose>4.0 0.5 0.4 0 0 0</pose><geometry><box><size>0.4 0.4 0.8</size></box></geometry><material><ambient>0.7 0.3 0.3 1</ambient><diffuse>0.8 0.35 0.35 1</diffuse></material></visual>
+        <!-- 1 buc tuong -->
+        <collision name="w1"><pose>5.0 -1.0 0.4 0 0 0</pose><geometry><box><size>0.2 3.0 0.8</size></box></geometry></collision>
+        <visual name="w1v"><pose>5.0 -1.0 0.4 0 0 0</pose><geometry><box><size>0.2 3.0 0.8</size></box></geometry><material><ambient>0.4 0.45 0.6 1</ambient><diffuse>0.5 0.55 0.7 1</diffuse></material></visual>
+      </link>
+    </model>
+
     <!-- Vat the test cho track_object (quadruped_follow) - qua cau mau cam,
          dat truoc diem spawn robot. VelocityControl cho phep dieu khien
          van toc tu ROS qua topic /model/target_ball/cmd_vel (bridge trong

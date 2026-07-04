@@ -1,0 +1,54 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Background Color: 20; 26; 34
+    Fixed Frame: odom
+    Frame Rate: 20
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 16
+      Color: 50; 62; 76
+    - Class: rviz_default_plugins/PointCloud2
+      Name: LiDAR PointCloud
+      Enabled: true
+      Topic:
+        Value: /mujoco/points
+        Reliability Policy: Reliable
+        Depth: 5
+      Style: Boxes
+      Size (m): 0.05
+      Color Transformer: AxisColor
+      Axis: Z
+      Use Fixed Frame: true
+    - Class: rviz_default_plugins/Marker
+      Name: Robot
+      Enabled: true
+      Topic:
+        Value: /mujoco/robot
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: true
+      Marker Scale: 0.5
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 12.0
+      Pitch: 1.05
+      Yaw: 0.8
+      Focal Point:
+        X: 0.0
+        Y: 0.0
+        Z: 0.0
+Window Geometry:
+  Height: 780
+  Width: 1040
+  Hide Left Dock: false
