@@ -63,10 +63,18 @@ vật cản là **một lớp riêng** định hình `/cmd_vel` (không đưa v�
   mạnh khi bị chặn sát để thoát góc. Đã kiểm chứng trong Gazebo (gần nhất ≥0.87m, không đâm).
 - **Điều hướng có đích** (`planner.py`): **A\*** trên lưới occupancy (đã phình an toàn theo
   bán kính robot) → bám đường bằng **pure pursuit holonomic** (đi ngang được vì robot 4 chân).
+- **An toàn + mượt** (`obstacle_avoider.py`): `SlewLimiter` làm mượt lệnh (cua không giật,
+  `max|Δwz|` 0.63→0.15), `StuckEscape` thoát ngõ cụt, và **clamp `wz ∈ [-0.75,+1.0]`** vì đo
+  được `wz ≤ -0.80` (xoay CW gấp) làm policy RL **ngã** trong MuJoCo.
 - **SLAM**: `slam_toolbox` (async) dựng `/map` khi robot tự đi né vòng quanh.
 
 Mọi module logic thuần đều có **self-test độc lập** (chạy `python3 -m quadruped_navigation.<module>`,
 không cần ROS/Gazebo).
+
+> **Mê cung:** né *reactive* không nhớ đường nên **có thể kẹt ở ngõ cụt** (đã hết ngã nhờ đi
+> chậm + slew + escape, nhưng RL policy đi lùi kém nên khó lùi ra). **Đi mê cung tin cậy thì dùng
+> `mujoco_lidar_nav.py maze` (A\*)** — đo bằng sim: *không bao giờ ngã*, tới 4/6 đích góc xa (vài đích
+> "phía bắc" chậm do bản đồ dựng dần phải khám phá nhiều).
 
 <p align="center">
   <img src="docs/images/go2_maze_lidar.png" width="720" alt="Go2 ne vat can LiDAR trong me cung + ban do occupancy"><br>

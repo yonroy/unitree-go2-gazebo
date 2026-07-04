@@ -19,7 +19,7 @@ from PIL import Image, ImageTk
 HERE = os.path.dirname(os.path.abspath(__file__))
 # tai dung logic ne vat can (pure numpy) tu quadruped_navigation (package con)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, '..', '..', 'quadruped_navigation')))
-from quadruped_navigation.obstacle_avoider import AvoidParams, compute_avoidance
+from quadruped_navigation.obstacle_avoider import AvoidParams, compute_avoidance, SlewLimiter, StuckEscape
 
 _scene = sys.argv[1] if len(sys.argv) > 1 else 'lidar'  # 'lidar' (phong) hoac 'maze'
 XML = os.path.join(HERE, 'go2_model', f'scene_{_scene}.xml')
@@ -38,6 +38,10 @@ RANGE_MAX = 8.0
 # Gioi han lenh yaw an toan (DA DO trong MuJoCo): wz <= -0.80 (xoay CW gap) lam robot
 # NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW gioi han +1.0 (range train).
 WZ_MIN, WZ_MAX = -0.75, 1.0
+# Lam muot lenh (slew-rate) [vx,vy,wz]: thay doi toi da moi tick. compute_avoidance
+# reactive nhay lenh dot ngot khi cua o goc (DA DO: wz nhay ~0.6 rad/s/tick -> giat);
+# gioi han nay ep cua muot ma van kip ne (DA DO: khong dam tuong).
+SLEW_MAX_DELTA = [0.12, 0.12, 0.15]
 VIEW_W, VIEW_H = 560, 420
 MAP_PX = 300
 MAP_M = 8.0          # ban do +/- 8m -> 16m
@@ -134,7 +138,13 @@ class App:
         self.inp = self.sess.get_inputs()[0].name
         self.lidar = Lidar(self.m)
         self.occ = OccMap()
-        self.params = AvoidParams(cruise_vx=0.55, max_wz=1.2, clear_dist=1.0, stop_dist=0.5)
+        # Toc do vua cho me cung (DA DO bang App that: cruise=0.55 lao vao ngo cut, dap
+        # tuong -> stumble/nghieng + ket; cruise=0.35 het stumble nhung qua rut re, quan
+        # tai cho. 0.45 + re som hon la diem can bang: di duoc ~8m, min_upz=-1.00 khong
+        # nghieng). Kem StuckEscape (thoat ket) + SlewLimiter (cua muot).
+        self.params = AvoidParams(cruise_vx=0.45, max_wz=1.2, clear_dist=1.1, stop_dist=0.55)
+        self.slew = SlewLimiter(SLEW_MAX_DELTA)  # lam muot lenh -> cua khong giat
+        self.escape = StuckEscape()  # thoat ket o ngo cut me cung (xem obstacle_avoider)
         self.action = np.zeros(12, np.float32)
         self.target = DEFAULT.copy()
         self.cmd = np.zeros(3, np.float32)
@@ -162,6 +172,8 @@ class App:
         self.d.qpos[2] = 0.30; self.d.qpos[3:7] = [1, 0, 0, 0]; self.d.qpos[7:] = DEFAULT
         self.d.qvel[:] = 0; self.action[:] = 0; self.target = DEFAULT.copy()
         self.occ = OccMap()
+        self.slew.reset()
+        self.escape.reset()
         mujoco.mj_forward(self.m, self.d)
 
     def _tick(self):
@@ -171,7 +183,11 @@ class App:
         ranges, hits = self.lidar.scan(self.d, pos, yaw)
         vx, wz = compute_avoidance(ranges, -np.pi, 2*np.pi/N_RAYS, RANGE_MAX, self.params)
         wz = float(np.clip(wz, WZ_MIN, WZ_MAX))  # tranh vung nga CW (xem WZ_MIN)
-        self.cmd[:] = [vx, 0.0, wz]
+        # Thoat ket ngo cut: neu khong tien duoc -> dong tac lui + xoay cam ket
+        sim_t = self.counter * SIM_DT
+        vx, wz = self.escape.step(sim_t, pos[:2], vx, wz, turn_hint=(1.0 if wz >= 0 else -1.0))
+        wz = float(np.clip(wz, WZ_MIN, WZ_MAX))
+        self.cmd[:] = self.slew.step([vx, 0.0, wz])  # slew-rate -> cua muot (xem SLEW_MAX_DELTA)
         self.occ.update(pos, hits)
 
         for _ in range(STEPS_PER_TICK):

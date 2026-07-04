@@ -27,7 +27,7 @@ from tf2_ros import TransformBroadcaster
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, '..', '..', 'quadruped_navigation')))
-from quadruped_navigation.obstacle_avoider import AvoidParams, compute_avoidance
+from quadruped_navigation.obstacle_avoider import AvoidParams, compute_avoidance, SlewLimiter
 
 _scene = sys.argv[1] if len(sys.argv) > 1 else 'lidar'  # 'lidar' (phong) hoac 'maze'
 XML = os.path.join(HERE, 'go2_model', f'scene_{_scene}.xml')
@@ -47,6 +47,9 @@ RANGE_MAX = 8.0
 # Gioi han lenh yaw an toan (DA DO trong MuJoCo): wz <= -0.80 (xoay CW gap) lam robot
 # NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW gioi han +1.0 (range train).
 WZ_MIN, WZ_MAX = -0.75, 1.0
+# Lam muot lenh (slew-rate) [vx,vy,wz] moi tick -> cua muot khong giat o goc
+# (DA DO trong avoid: giam max|dwz| 0.63->0.15 ma van ne kip). Xem SlewLimiter.
+SLEW_MAX_DELTA = [0.12, 0.12, 0.15]
 VOXEL = 0.08              # gop diem theo o 8cm (dam may khong phinh vo han)
 MAX_POINTS = 120000
 _GG = np.array([0, 0, 0, 1, 0, 0], np.uint8)
@@ -90,6 +93,7 @@ class MujocoLidarRviz(Node):
         self.counter = 0
         self.tick = 0
         self.params = AvoidParams(cruise_vx=0.55, max_wz=1.2, clear_dist=1.0, stop_dist=0.5)
+        self.slew = SlewLimiter(SLEW_MAX_DELTA)  # lam muot lenh -> cua khong giat
         self.voxels = {}   # key -> (x,y,z) diem tich luy
 
         self.pc_pub = self.create_publisher(PointCloud2, '/mujoco/points', 5)
@@ -132,7 +136,7 @@ class MujocoLidarRviz(Node):
         r = self._scan2d_ranges(pos, yaw)
         vx, wz = compute_avoidance(r, -np.pi, 2*np.pi/N_H, RANGE_MAX, self.params)
         wz = float(np.clip(wz, WZ_MIN, WZ_MAX))  # tranh vung nga CW (xem WZ_MIN)
-        self.cmd[:] = [vx, 0.0, wz]
+        self.cmd[:] = self.slew.step([vx, 0.0, wz])  # slew-rate -> cua muot (xem SLEW_MAX_DELTA)
 
         for _ in range(STEPS_PER_TICK):
             tau = KP*(self.target - self.d.qpos[7:]) - KD*self.d.qvel[6:]

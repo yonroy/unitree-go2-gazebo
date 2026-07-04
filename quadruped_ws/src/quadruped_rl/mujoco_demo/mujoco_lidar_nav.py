@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw, ImageTk
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, '..', '..', 'quadruped_navigation')))
 from quadruped_navigation.planner import astar, inflate, pure_pursuit
-from quadruped_navigation.obstacle_avoider import AvoidParams, compute_avoidance
+from quadruped_navigation.obstacle_avoider import AvoidParams, compute_avoidance, SlewLimiter, StuckEscape
 
 _scene = sys.argv[1] if len(sys.argv) > 1 else 'lidar'  # 'lidar' (phong) hoac 'maze'
 XML = os.path.join(HERE, 'go2_model', f'scene_{_scene}.xml')
@@ -38,13 +38,17 @@ RANGE_MAX = 8.0
 # Gioi han lenh yaw an toan (DA DO trong MuJoCo): wz <= -0.80 (xoay CW gap) lam robot
 # NGA (z tut 0.33->0.22, nghieng ~28 deg); -0.75 con vung. CCW gioi han +1.0 (range train).
 WZ_MIN, WZ_MAX = -0.75, 1.0
+# Lam muot lenh (slew-rate) [vx,vy,wz] moi tick -> cua muot khong giat o goc
+# (DA DO trong avoid: giam max|dwz| 0.63->0.15 ma van ne kip). Xem SlewLimiter.
+SLEW_MAX_DELTA = [0.12, 0.12, 0.15]
 VIEW_W, VIEW_H = 520, 400
-MAP_PX = 300
-MAP_M = 4.0
+MAP_PX = 340
+MAP_M = 5.0                           # phu het me cung (tuong toi +-4.5m), truoc 4.0 bo sot
 MAP_RES = MAP_M * 2 / MAP_PX
-ROBOT_R_CELLS = int(0.35 / MAP_RES)   # phinh vat can theo ban kinh robot
-SAFETY_DIST = 0.5                     # vat can gan hon -> reactive override
-REPLAN_EVERY = 40                     # tick (~1.2s) giua 2 lan A*
+ROBOT_R_CELLS = int(0.28 / MAP_RES)   # phinh vat can theo ban kinh robot (0.28m: du an
+# toan ma khong lam hep hanh lang me cung ~1.4m den muc A* het duong - DA DO: 0.35 qua day)
+SAFETY_DIST = 0.45                    # vat can gan hon -> reactive override
+REPLAN_EVERY = 18                     # tick (~0.65s) giua 2 lan A* (replan nhanh khi ban do day dan)
 _GG = np.array([0, 0, 0, 1, 0, 0], np.uint8)
 
 
@@ -89,6 +93,8 @@ class App:
         self.gid = np.zeros(1, np.int32)
         self.occ = np.zeros((MAP_PX, MAP_PX), np.float32)
         self.params = AvoidParams(cruise_vx=0.55, max_wz=1.2, clear_dist=1.0, stop_dist=0.5)
+        self.slew = SlewLimiter(SLEW_MAX_DELTA)  # lam muot lenh -> cua khong giat
+        self.escape = StuckEscape()  # thoat ket khi roam/ne (xem obstacle_avoider)
         self.action = np.zeros(12, np.float32)
         self.target = DEFAULT.copy()
         self.cmd = np.zeros(3, np.float32)
@@ -125,6 +131,7 @@ class App:
     def _clear(self):
         self.goal = None
         self.path_world = []
+        self.slew.reset(); self.escape.reset()
 
     def _scan(self, pos, yaw):
         pnt = np.array([pos[0], pos[1], LIDAR_H], np.float64)
@@ -178,23 +185,38 @@ class App:
             self._replan(pos)
 
         near = float(r.min())
+        sim_t = self.counter * SIM_DT
         vy = 0.0
+        reactive = False
         if self.goal is None:
             vx, wz = 0.0, 0.0; self.mode = 'ĐỨNG (chưa có đích)'
         elif near < SAFETY_DIST:
             vx, wz = compute_avoidance(r, -np.pi, 2*np.pi/N_RAYS, RANGE_MAX, self.params)
-            self.mode = 'NÉ khẩn cấp'
+            self.mode = 'NÉ khẩn cấp'; reactive = True
+        elif not self.path_world:
+            # A* CHUA co duong (ban do chua du de tim ra loi) -> KHAM PHA bang reactive
+            # de xay them ban do, thay vi di thang vao tuong roi lang thang (DA DO: dich B
+            # that bai vi fallback di-thang dam tuong). Khi ban do du, A* se ra duong.
+            vx, wz = compute_avoidance(r, -np.pi, 2*np.pi/N_RAYS, RANGE_MAX, self.params)
+            self.mode = 'KHÁM PHÁ (chưa có đường)'; reactive = True
         else:
-            # theo duong A*; neu chua co path -> di THANG toi dich (safety van ne)
-            path = self.path_world if self.path_world else [self.goal]
-            vx, vy, wz, reached = pure_pursuit(path, pos[0], pos[1], yaw,
-                                               cruise=0.6, lookahead=0.9, max_vy=0.7)
+            vx, vy, wz, reached = pure_pursuit(self.path_world, pos[0], pos[1], yaw,
+                                               cruise=0.45, lookahead=0.7, max_vy=0.5)
             if reached:
                 self.goal = None; self.path_world = []; vx = vy = wz = 0.0; self.mode = 'ĐÃ TỚI ĐÍCH'
             else:
-                self.mode = 'ĐI theo A*' if self.path_world else 'đi thẳng tới đích'
+                self.mode = 'ĐI theo A*'
+        if reactive:
+            # thoat ket ngo cut khi dang reactive (né/khám phá)
+            vx, wz = self.escape.step(sim_t, pos[:2], vx, wz, turn_hint=(1.0 if wz >= 0 else -1.0))
+        else:
+            self.escape.reset()
         wz = float(np.clip(wz, WZ_MIN, WZ_MAX))  # tranh vung nga CW (xem WZ_MIN)
-        self.cmd[:] = [vx, vy, wz]
+        # Khi DUNG (chua co dich / da toi) -> reset slew de khong "troi" lenh cu
+        if vx == 0.0 and vy == 0.0 and wz == 0.0:
+            self.slew.reset(); self.cmd[:] = [0.0, 0.0, 0.0]
+        else:
+            self.cmd[:] = self.slew.step([vx, vy, wz])  # slew-rate -> muot (xem SLEW_MAX_DELTA)
 
         for _ in range(STEPS_PER_TICK):
             tau = KP*(self.target - self.d.qpos[7:]) - KD*self.d.qvel[6:]

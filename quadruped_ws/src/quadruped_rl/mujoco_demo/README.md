@@ -54,22 +54,49 @@ vat can, khong trung robot). MuJoCo Renderer AN group 3,4,5 mac dinh -> phai bat
 `opt = mujoco.MjvOption(); opt.geomgroup[3] = 1` roi `update_scene(d, cam, opt)` (da lam
 trong cac app). Neu khong se khong thay tuong/cot du chung van chan LiDAR.
 
+### An toàn & làm mượt lệnh (dùng chung mọi app)
+
+Ba cơ chế đã thêm vào chuỗi lệnh (`quadruped_navigation/obstacle_avoider.py`, có self-test),
+đều **kiểm chứng bằng cách chạy chính class App thật** (driver gọi `_tick` lặp — bản mô phỏng
+thuần bị lệch do onnxruntime đa luồng phi tất định):
+
+- **Clamp lệnh yaw `wz ∈ [-0.75, +1.0]`** — đã đo: `wz ≤ -0.80` (xoay CW gấp) làm robot **ngã**
+  (z tụt 0.33→0.22, nghiêng ~28°); `-0.75` còn vững. Chú ý `max_wz=1.2` của avoidance vượt cả
+  dải train `[-1,1]` của policy → bắt buộc clamp trước khi vào policy.
+- **`SlewLimiter`** (giới hạn tốc độ đổi lệnh) — reactive nhảy lệnh đột ngột ở góc (đo: `max|Δwz|`
+  ~0.63 rad/s/tick → giật). Slew ép mượt → `max|Δwz|` 0.63 **→ 0.15**, cua không giật, vẫn né kịp.
+- **`StuckEscape`** — né reactive không nhớ đường nên kẹt ở ngõ cụt; helper này phát hiện không
+  tiến được rồi ra **động tác thoát cam kết một chiều** (lùi + xoay) để gỡ.
+
 ### `mujoco_lidar_avoid.py` — LiDAR né vật cản + bản đồ (không train, không ROS)
 
-Robot **tự đi né vật cản** trong 1 căn phòng có cột/tường (scene `scene_lidar.xml`):
-LiDAR mô phỏng bằng `mujoco.mj_ray` (90 tia, chỉ quét vật cản group 3) → `compute_avoidance`
-(tái dùng từ `quadruped_navigation`, đã self-test) → `cmd_vel` → **policy RL đi**.
-Cửa sổ 2 khung: MuJoCo (robot né) + **bản đồ occupancy** dựng dần (pose ground-truth
-từ MuJoCo nên mapping đơn giản, giống SLAM). Đã kiểm chứng: khoảng cách gần nhất tới
-vật cản ~0.85m, không đâm. LiDAR đặt z=0.5 (trên nóc thân, tránh tia bị chính thân chặn).
+Robot **tự đi né vật cản** bằng LiDAR mô phỏng (`mujoco.mj_ray`, 90 tia, chỉ quét vật cản
+group 3) → `compute_avoidance` (tái dùng từ `quadruped_navigation`, đã self-test) → `cmd_vel`
+→ **policy RL đi**. Cửa sổ 2 khung: MuJoCo (robot né) + **bản đồ occupancy** dựng dần.
 
-### `mujoco_lidar_nav.py` — điều hướng tới đích (A* + pure pursuit)
+- **Phòng trống thưa vật cản** (`scene_lidar.xml`, chạy không kèm `maze`): hoạt động tốt,
+  gần nhất tới vật cản ~0.85m, không đâm.
+- **Mê cung** (`maze`): đã giảm `cruise_vx` 0.55→**0.45** + né sớm hơn để **không còn đập tường/ngã**
+  (trước: lao 0.55 vào ngõ cụt → nghiêng 28° → kẹt). Kèm SlewLimiter + StuckEscape. **Nhưng** né
+  reactive vẫn **có thể kẹt ở ngõ cụt** (RL policy đi lùi kém, khó lùi ra) — đây là giới hạn bản
+  chất của reactive. **Đi mê cung tin cậy thì dùng `mujoco_lidar_nav.py maze`** (bên dưới).
+
+### `mujoco_lidar_nav.py` — điều hướng tới đích (A* + pure pursuit) — *đúng công cụ cho mê cung*
 
 **Click 1 điểm trên bản đồ** → robot tự lập đường (**A\*** trên lưới occupancy đã phình
 an toàn) → **bám đường bằng pure pursuit holonomic** (đi thẳng tới đích bằng vx+vy vì
-robot 4 chân đi ngang được) → **policy RL đi**. Reactive avoidance là lớp an toàn cho
-vật cản chưa lên bản đồ. Logic thuần ở `quadruped_navigation/planner.py` (A*, inflate,
-pure_pursuit — có self-test). Đã kiểm chứng: robot tới đích qua vật cản, gần nhất ~0.43m.
+robot 4 chân đi ngang được) → **policy RL đi**. Logic thuần ở `quadruped_navigation/planner.py`
+(A*, inflate, pure_pursuit — có self-test).
+
+Đã tinh chỉnh cho **mê cung** (đo bằng App thật, đích ở tâm ô `{-3,-1.5,0,1.5,3}²`):
+- Khi A* **chưa có đường** (bản đồ chưa đủ) → **roam khám phá** bằng reactive để xây thêm bản đồ,
+  thay vì đi thẳng đâm tường; bản đồ đủ thì A* ra đường.
+- `MAP_M` 4→5 (phủ hết mê cung ±4.5m), inflation 0.35→0.28m (tránh A* hết đường ở hành lang 1.4m),
+  replan 40→18 tick, `cruise` 0.6→0.45 / `lookahead` 0.9→0.7.
+
+**Kết quả:** **không bao giờ ngã** (min up-vector = −1.00 mọi lần), tới **4/6** đích góc xa; vài đích
+"phía bắc" chậm/chưa tới trong thời gian test (bản đồ dựng dần phải khám phá nhiều — giới hạn của
+mapping tăng dần, không phải ngã). Phòng trống thì tới đích qua vật cản, gần nhất ~0.43m.
 
 ### `mujoco_lidar_rviz.py` — point cloud 3D trong RViz
 
