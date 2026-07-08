@@ -28,7 +28,9 @@ URDF lấy từ `unitreerobotics/unitree_ros` (BSD-3).
 - ✅ **track_object** — camera + YOLO + PID bám mục tiêu tới `stop_distance`.
 - ✅ **LiDAR né vật cản + SLAM** (Gazebo) — reactive VFH-lite, `slam_toolbox` dựng `/map`, gần nhất ≥0.87m.
 - ✅ **RL locomotion** (ONNX) — robot đứng + đi + xoay tại chỗ (sau khi fix, xem §4).
-- ✅ **MuJoCo demos** — joystick, lidar_avoid, lidar_nav (A*), lidar_rviz, mê cung.
+- ✅ **MuJoCo demos** — joystick, follow-object, lidar_avoid, lidar_nav (A*), lidar_rviz, mê cung.
+- ✅ **Follow-object MuJoCo** (`mujoco_follow.py`) — bám mục tiêu (mocap ball), tái dùng `compute_cmd`
+  từ `quadruped_follow`; đo: đứng yên tới ~0.85m (giữ 0.8m), bay vòng bám ổn định, không ngã.
 
 ## 4. Điểm kỹ thuật quan trọng (bug chỉ lộ khi đo thật)
 - **RL sai thứ tự khớp** — ONNX theo thứ tự POLICY (FL,FR,RL,RR) ≠ SDK (FR,FL,RR,RL);

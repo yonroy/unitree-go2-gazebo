@@ -33,6 +33,8 @@ cd ~/Ros2/quadruped_ws/src/quadruped_rl/mujoco_demo
 
 python3 mujoco_joystick.py             # lai tay - nen phang
 python3 mujoco_joystick.py obstacles   # lai tay - cau thang + chuong ngai
+python3 mujoco_follow.py               # BAM MUC TIEU: lai qua cau, robot bam giu stop_distance
+python3 mujoco_goto.py                 # DI TOI TOA DO tren mat phang (chon/click dich) - khong vat can
 python3 mujoco_lidar_avoid.py          # TU DONG ne vat can bang LiDAR + dung ban do
 python3 mujoco_lidar_nav.py            # DIEU HUONG: click dich tren ban do -> A* -> toi noi
 python3 mujoco_lidar_rviz.py          # publish PointCloud2 3D -> xem trong RViz (can source ROS)
@@ -67,6 +69,41 @@ thuần bị lệch do onnxruntime đa luồng phi tất định):
   ~0.63 rad/s/tick → giật). Slew ép mượt → `max|Δwz|` 0.63 **→ 0.15**, cua không giật, vẫn né kịp.
 - **`StuckEscape`** — né reactive không nhớ đường nên kẹt ở ngõ cụt; helper này phát hiện không
   tiến được rồi ra **động tác thoát cam kết một chiều** (lùi + xoay) để gỡ.
+
+### `mujoco_goto.py` — đi tới toạ độ trên mặt phẳng (goto-point, không vật cản)
+
+**Chọn toạ độ** bằng nút đặt sẵn (4 góc + tâm) hoặc **click bản đồ** → robot xoay về hướng đích
+và đi tới, dừng khi đến nơi (`compute_cmd` từ `quadruped_navigation/goto_point.py`, đã self-test).
+Bản đồ (phải) vẽ lưới 1m + robot (kèm hướng) + đích + **đường đã đi**. Không LiDAR/A*/né vật cản.
+
+Đã kiểm chứng (App thật, mặt phẳng): tới **6/6 toạ độ** thử (4 góc ±2.5 + biên), không ngã.
+**Lưu ý dùng "xoay-khi-đi" (arc):** policy RL trong MuJoCo xoay TẠI CHỖ rất kém — nhất là chiều
+CW (đo được: ~2°/s rồi stall) — nên robot luôn giữ ít vận tốc tiến để **vòng cung** tới đích thay
+vì xoay tại chỗ rồi mới đi (xoay khi đang tiến thì policy làm tốt).
+
+### `mujoco_follow.py` — bám mục tiêu (follow-object, không train, không ROS)
+
+<p align="center">
+  <img src="../../../../docs/images/go2_follow_object.gif" width="620" alt="Go2 bam muc tieu + camera detect trong MuJoCo"><br>
+  <em>Go2 bám quả cầu bay vòng (trái) + camera robot phát hiện mục tiêu kèm bounding box (phải)</em>
+</p>
+
+Mục tiêu là **quả cầu cam** (mocap body — không va chạm vật lý). **Lái quả cầu bằng pad ảo**
+(hoặc bật **"Tự động bay vòng"**) → robot cảm nhận vị trí mục tiêu (ground-truth, quy về khung
+robot) → `compute_cmd` (PID khoảng cách+góc, **tái dùng từ `quadruped_follow`**, đã self-test)
+→ `(vx,wz)` → **policy RL đi**. Robot **bám theo và giữ `stop_distance`** (lùi lại nếu quá gần).
+
+**2 khung hình:** (trái) cảnh bên thứ 3; (phải) **camera robot — DETECT**: camera FPV gắn trên
+thân (thêm vào body `base` lúc chạy bằng **`MjSpec`**, không sửa `go2.xml` gốc) + **bounding box**
+vẽ quanh mục tiêu. Detect ở đây = **chiếu vị trí 3D ground-truth của quả cầu xuống ảnh camera**
+(`cam_xpos`/`cam_xmat`/`cam_fovy`) — chính xác, nhẹ, không cần YOLO (bản Gazebo dùng camera+YOLO,
+mà quả cầu trơn không texture thì YOLO nhận rất kém — xem ghi chú `quadruped_perception`). Mục tiêu
+ra sau lưng / ngoài khung → hiện "khong thay muc tieu". Phép chiếu đã kiểm chứng khớp pixel cầu render (~5px).
+
+Đã kiểm chứng (chạy App thật): mục tiêu đứng yên → robot tới **~0.85m** (giữ 0.8m); mục tiêu bay
+vòng ~0.56 m/s → bám ổn định ~1.58m (trễ do policy RL under-track tốc độ tiến); **không ngã**
+(up-vector = −1.00). `kp_linear` để cao (2.2) vì policy có vùng chết vận tốc thấp — kp thấp thì
+robot dừng sớm (0.98m).
 
 ### `mujoco_lidar_avoid.py` — LiDAR né vật cản + bản đồ (không train, không ROS)
 

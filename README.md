@@ -101,6 +101,8 @@ cd ~/Ros2/quadruped_ws/src/quadruped_rl/mujoco_demo
 
 DISPLAY=:1 python3 mujoco_joystick.py            # lai tay - nen phang
 DISPLAY=:1 python3 mujoco_joystick.py obstacles  # lai tay - cau thang + chuong ngai
+DISPLAY=:1 python3 mujoco_follow.py              # BAM MUC TIEU: lai qua cau, robot bam giu stop_distance
+DISPLAY=:1 python3 mujoco_goto.py                # DI TOI TOA DO tren mat phang (chon/click dich)
 DISPLAY=:1 python3 mujoco_lidar_avoid.py         # TU DONG ne vat can bang LiDAR + dung ban do
 DISPLAY=:1 python3 mujoco_lidar_nav.py           # DIEU HUONG: click dich tren ban do -> A* -> toi noi
 python3 mujoco_lidar_rviz.py                     # publish PointCloud2 3D -> xem trong RViz (source ROS)
@@ -112,7 +114,13 @@ DISPLAY=:1 python3 mujoco_lidar_nav.py maze       # dieu huong A* qua me cung
 ```
 
 <p align="center">
-  <img src="docs/images/obstacle_course.png" width="520" alt="Course chuong ngai: go -> buc -> cau thang">
+  <img src="docs/images/go2_follow_object.gif" width="620" alt="Go2 bam muc tieu + camera detect trong MuJoCo"><br>
+  <em>Follow-object: Go2 bám quả cầu bay vòng (trái) + camera robot phát hiện mục tiêu kèm bounding box (phải)</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/go2_goto_point.gif" width="560" alt="Go2 di toi toa do tren mat phang trong MuJoCo"><br>
+  <em>Goto-point: Go2 đi tuần tự tới các toạ độ trên mặt phẳng (trái) + bản đồ hiển thị đích & đường đã đi (phải)</em>
 </p>
 
 Các app LiDAR **tái dùng chính** `obstacle_avoider.py`/`planner.py` từ `quadruped_navigation`
