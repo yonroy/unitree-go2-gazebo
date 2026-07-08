@@ -112,6 +112,8 @@ def generate_launch_description():
             '/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
             '/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
             '/model/target_ball/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
+            # /scan: LiDAR 2D (gpu_lidar) cho ne vat can + SLAM (slam_toolbox).
+            '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ],
         output='screen',
     )

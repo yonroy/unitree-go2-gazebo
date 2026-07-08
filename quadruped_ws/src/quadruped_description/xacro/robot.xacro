@@ -117,6 +117,34 @@ Thay doi so voi ban goc (ROS1 + Gazebo Classic):
 
     <link name="camera_link_optical"/>
 
+    <!-- LiDAR 2D gan tren noc trunk, dung cho ne vat can + SLAM (quadruped_navigation).
+         Sensor gpu_lidar khai trong gazebo.xacro, publish /scan. -->
+    <joint name="lidar_joint" type="fixed">
+        <parent link="trunk"/>
+        <child link="lidar_link"/>
+        <origin rpy="0 0 0" xyz="0.1 0 0.09"/>
+    </joint>
+
+    <link name="lidar_link">
+        <inertial>
+            <mass value="0.001"/>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+        </inertial>
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.035" length="0.04"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.035" length="0.04"/>
+            </geometry>
+        </collision>
+    </link>
+
     <xacro:leg name="FR" mirror="-1" mirror_dae="False" front_hind="1"  front_hind_dae="True"  />
     <xacro:leg name="FL" mirror="1"  mirror_dae="True"  front_hind="1"  front_hind_dae="True"  />
     <xacro:leg name="RR" mirror="-1" mirror_dae="False" front_hind="-1" front_hind_dae="False" />

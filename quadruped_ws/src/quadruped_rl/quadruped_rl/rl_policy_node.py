@@ -29,6 +29,20 @@ from .policy_runner import (
 CMD_VEL_TIMEOUT_S = 0.5
 TORQUE_LIMIT = 23.7  # N*m - gioi han torque motor Go2 (an toan)
 HOLD_DURATION_S = 3.0  # giu tu the default (position ctrl) truoc khi chuyen sang effort
+# Throttle goi switch_controller: callback /joint_states chay ~200Hz, neu retry
+# switch moi callback se HAMMER controller_manager (executor don luong) -> spawner
+# joint_effort_controller khong goi noi list_controllers -> controller khong bao gio
+# nap -> policy khong chay (DA KIEM CHUNG bang log: spawner timeout 3 lan). Gioi han
+# 1 lan/giay du de switch thanh cong ma khong lam nghen controller_manager.
+SWITCH_RETRY_PERIOD_S = 1.0
+# Khuech dai lenh yaw truoc khi dua vao policy. Ly do (DA DO THUC TE trong Gazebo):
+# policy under-track yaw nang - lenh wz=0.5 va wz=1.0 deu chi cho ~0.24 rad/s thuc
+# (bao hoa) do sim-to-sim gap. Nhung lenh yaw LON lam robot xoay "tai cho" sach hon
+# (giam troi tinh tien: wz=1.0 -> vi tri gan nhu dung yen, wz=0.5 -> van troi ~0.19m/s).
+# Teleop chi gui toi ~0.5 rad/s -> khuech dai x2 (clamp ±1.0 = trong khoang train
+# ang_vel_z [-1,1] cua deploy.yaml) de dat vung xoay tai cho tot nhat policy lam duoc.
+YAW_CMD_GAIN = 2.0
+YAW_CMD_MAX = 1.0
 
 
 class RLPolicyNode(Node):
@@ -56,6 +70,7 @@ class RLPolicyNode(Node):
         self.phase = 'HOLD'
         self._hold_start = None
         self._switch_pending = False
+        self._last_switch_attempt = None  # throttle switch_controller (xem SWITCH_RETRY_PERIOD_S)
 
         self.effort_pub = self.create_publisher(
             Float64MultiArray, '/joint_effort_controller/commands', 10)
@@ -131,7 +146,14 @@ class RLPolicyNode(Node):
             self.pos_pub.publish(out)
             elapsed = (self.get_clock().now() - self._hold_start).nanoseconds / 1e9
             if elapsed > HOLD_DURATION_S and not self._switch_pending:
-                self._request_switch()  # da on dinh -> chuyen sang effort
+                now = self.get_clock().now()
+                # Throttle: chi thu switch 1 lan/SWITCH_RETRY_PERIOD_S de khong nghen
+                # controller_manager (neu khong, spawner effort khong nap duoc controller).
+                due = (self._last_switch_attempt is None or
+                       (now - self._last_switch_attempt).nanoseconds / 1e9 > SWITCH_RETRY_PERIOD_S)
+                if due:
+                    self._last_switch_attempt = now
+                    self._request_switch()  # da on dinh -> chuyen sang effort
         elif self.phase == 'RUN':
             # --- Vong PD nhanh: torque theo state MOI + target hien tai ---
             tau = pd_torque(self.target, self.joint_pos, self.joint_vel)
@@ -151,7 +173,9 @@ class RLPolicyNode(Node):
         if dt > CMD_VEL_TIMEOUT_S:
             self.vx = self.vy = self.wz = 0.0  # het lenh -> dung tai cho
 
-        cmd = np.array([self.vx, self.vy, self.wz], np.float32)
+        # Khuech dai lenh yaw toi vung bao hoa cua policy (xem YAW_CMD_GAIN).
+        wz_cmd = float(np.clip(self.wz * YAW_CMD_GAIN, -YAW_CMD_MAX, YAW_CMD_MAX))
+        cmd = np.array([self.vx, self.vy, wz_cmd], np.float32)
         _action, target = self.runner.infer(
             self.ang_vel, self.proj_gravity, cmd, self.joint_pos, self.joint_vel)
         self.target = target

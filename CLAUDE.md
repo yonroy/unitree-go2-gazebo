@@ -25,6 +25,12 @@ Chạy mô phỏng đầy đủ:
 ros2 launch quadruped_bringup quadruped_sim.launch.py
 ```
 
+LiDAR né vật cản + SLAM dựng bản đồ (cần `sudo apt install ros-jazzy-slam-toolbox`):
+```bash
+ros2 launch quadruped_navigation lidar_slam.launch.py
+```
+LiDAR 2D (`lidar_link`/`gpu_lidar` trong xacro) → `/scan`; `obstacle_avoider` né reactive → `/cmd_vel` → gait; `slam_toolbox` dựng `/map` (TF: map→odom→trunk→lidar_link). Vật cản tĩnh trong `flat_ground.sdf` (model `obstacles`). Đã kiểm chứng: robot né, khoảng cách gần nhất luôn ≥0.87m (không đâm).
+
 **Lưu ý camera sensor trên máy GPU hybrid (Intel iGPU + NVIDIA dGPU):** mesh COLLADA (`.dae`) nhiều polygon của Go2 (~78k faces cho `base.dae`) làm **hỏng render context của camera sensor** → ảnh `/camera/image` ra màu xám đồng nhất (`std=0`). Đã kiểm chứng bằng thực nghiệm loại trừ: visual bằng box/mesh ít face → camera render đúng; visual bằng mesh nhiều face → camera hỏng (ngưỡng ~7700 faces/mesh, xảy ra với cả `ogre`/`ogre2`, cả GUI lẫn `--headless-rendering`). Đây là lỗi tầng gz-sim/driver, không phải lỗi model. **Giải pháp đang dùng: visual robot dùng box/cylinder primitive** (xem `xacro/robot.xacro`, `xacro/leg.xacro`) — collision/inertial vẫn giữ số thật, không ảnh hưởng vật lý/điều khiển. Mesh `.dae` gốc vẫn còn trong `meshes/` nhưng không tham chiếu trong xacro. (Mesh giảm poly ~7k faces render được nhưng nhìn xấu hơn box nên không dùng.)
 
 Launch có tham số `headless:=true` (chạy `-s --headless-rendering`, không GUI) — không bắt buộc cho camera nữa nhưng giữ lại để chạy nhẹ khi không cần cửa sổ.
@@ -51,7 +57,7 @@ gz topic -e -t /world/flat_ground/pose/info -n 1 | grep -A12 'name: "go2"'
 | `quadruped_bringup` | Launch tổng |
 | `quadruped_teleop` | Bảng điều khiển joystick ảo (Tkinter) + khung hiển thị camera `/camera/image` kèm bounding box từ `/detections` (vẽ bằng PIL). Camera là tuỳ chọn: thiếu `cv_bridge`/`PIL`/`vision_msgs` thì panel vẫn chạy, chỉ bỏ khung camera. |
 | `quadruped_interfaces` | Custom action `GotoPoint.action`, `TrackObject.action`, msg `TrackedTarget.msg` |
-| `quadruped_navigation` | Action server `goto_point_server` (đi tới toạ độ x,y rồi dừng) |
+| `quadruped_navigation` | Action server `goto_point_server` (đi tới x,y rồi dừng) + `obstacle_avoider` (né vật cản reactive từ LiDAR `/scan` → `/cmd_vel`, logic thuần `obstacle_avoider.py` có self-test) + launch `lidar_slam.launch.py` (LiDAR + né + slam_toolbox dựng bản đồ) |
 | `quadruped_perception` | Camera RGBD (`camera_link`/`camera_link_optical` trong xacro) → YOLO (`object_detector.py`) → tracker đơn giản (`tracker.py`) → điểm 3D khung `trunk` (`target_pose_node.py`). Phụ thuộc `ultralytics`/`torch` cài qua pip (không phải rosdep), xem ghi chú bên dưới. |
 | `quadruped_follow` | Action server `track_object_server` (bám mục tiêu, giữ `stop_distance`) + logic PID thuần `follow_object.py` |
 | `quadruped_rl` | RL locomotion: chạy policy ONNX (`diasAiMaster/unitree-go2-velocity-flat`, BSD-3) thay gait rule-based. `policy_runner.py` (logic thuần + self-test) + `rl_policy_node.py` (obs 45 chiều → ONNX → PD torque → effort). Launch `rl_locomotion.launch.py`. Phụ thuộc `onnxruntime` (pip). |

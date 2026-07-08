@@ -36,7 +36,7 @@ def generate_launch_description():
     # Nap joint_effort_controller nhung INACTIVE (node se kich hoat sau khi on dinh).
     # Delay de chac controller_manager da san sang (sau khi gz + robot spawn).
     effort_controller_loader = TimerAction(
-        period=14.0,
+        period=8.0,
         actions=[Node(
             package='controller_manager', executable='spawner',
             arguments=['joint_effort_controller', '--inactive'],
